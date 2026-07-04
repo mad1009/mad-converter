@@ -58,10 +58,15 @@ def process_single_image_task(args):
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
 
+            # --- DYNAMIC DIMENSION HANDLING ---
+            # Fall back to original image dimensions if None is provided
+            actual_w = width if width is not None else img.width
+            actual_h = height if height is not None else img.height
+
             if crop_enabled:
-                optimized_img = ImageOps.fit(img, (width, height), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+                optimized_img = ImageOps.fit(img, (actual_w, actual_h), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
             else:
-                img.thumbnail((width, height), Image.Resampling.LANCZOS)
+                img.thumbnail((actual_w, actual_h), Image.Resampling.LANCZOS)
                 optimized_img = img
             
             final_quality = save_closest_to_target_size(optimized_img, output_path, max_kb, "WEBP")
@@ -70,6 +75,7 @@ def process_single_image_task(args):
         return True, original_size, final_size, f"✅ {file_path.name} (Q: {final_quality}%)"
     except Exception as e:
         return False, 0, 0, f"❌ {file_path.name} (Error: {e})"
+
 
 # ---------------------------------------------------------
 # GUI APPLICATION (DASHBOARD ARCHITECTURE)
@@ -493,16 +499,25 @@ CORE TECHNOLOGY
 
     def get_dynamic_sections(self):
         sections = {}
+        DEFAULT_KB = 500.0  # Set your preferred default target size here
+
         for r in self.section_rows:
             name = r["name"].get().strip()
             if not name: continue
+            
+            w_str = r["w"].get().strip()
+            h_str = r["h"].get().strip()
+            kb_str = r["kb"].get().strip()
+
             try:
-                w = int(r["w"].get().strip())
-                h = int(r["h"].get().strip())
-                kb = float(r["kb"].get().strip())
+                # If the field has a value, parse it. If empty, use None or the default.
+                w = int(w_str) if w_str else None
+                h = int(h_str) if h_str else None
+                kb = float(kb_str) if kb_str else DEFAULT_KB
+                
                 sections[name] = (w, h, kb)
             except ValueError:
-                self.log(f"⚠️ Ignored rule '{name}' - Dimensions/KB must be valid numbers.")
+                self.log(f"⚠️ Ignored rule '{name}' - Dimensions/KB must be valid numbers if provided.")
         return sections
 
     def create_folder_structure(self):
